@@ -1,0 +1,20 @@
+# Secrets & credentials — never commit
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime data — regenerated, may contain trade history
+data/*.db
+data/backtest_cache/
+data/backtest_report.txt
+logs/
