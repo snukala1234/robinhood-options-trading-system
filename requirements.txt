@@ -68,3 +68,4 @@ SQLAlchemy==2.0.51
 testcontainers==4.14.2
 wrapt==2.2.2
 pip-audit==2.10.1
+hypothesis==6.159.0

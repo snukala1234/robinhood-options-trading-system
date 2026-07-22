@@ -57,6 +57,37 @@ recorded; all money arithmetic remains pure Decimal. One fix: a test asserted th
 `None` return of an always-`None` function (mypy `func-returns-value`) — rewritten
 to assert "no exception".
 
+## Phase D — Broker capability discovery and adapters (2026-07-22)
+
+Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by
+construction, multi-leg atomic or nothing, mandatory idempotency keys); runtime
+capability discovery from the MCP tool listing (fail-closed: unknown tools grant
+nothing, bare multi-leg tool name not trusted without a `legs` schema) persisted to
+`broker_capability_snapshots` with hashed account ids; fully functional paper broker
+(partial fills, limit-price discipline, cancel/expire/reject, idempotent replay,
+injectable restricted capabilities); Robinhood MCP adapter over an injected
+transport (no transport -> BrokerUnavailable, transport error -> BrokerUnavailable,
+live submit -> LiveOrdersDisabled before any call while ALLOW_LIVE_ORDERS=False);
+event-sourced order state machine over `orders`/`order_events` (illegal transitions
+recorded as RECONCILIATION_REQUIRED, duplicate keys rejected in code AND by the DB
+UNIQUE constraint, duplicate broker deliveries are no-ops); reconciliation engine
+(broker-ahead converges, impossible states flag + critical system_events, missing/
+unknown orders flagged, stale SUBMITTED past 60s blocks new entries).
+`docs/BROKER_CAPABILITIES.md` documents discovery semantics and the exact human
+setup steps for connecting the real MCP later. 47 new tests incl. hypothesis
+property tests (duplicate idempotency keys can never create two orders at either
+layer; uncertainty always blocks new entries; transition function matches the
+Section 12.2 table exactly). Full suite 292 green; mypy/ruff clean.
+
+Failures encountered and fixed:
+
+1. A test asserted `VALIDATED -> SUBMITTED` directly — the machine correctly
+   flagged it illegal (Section 12.2 requires STAGED in between). The test path was
+   fixed; the machine was right.
+2. A reconciliation test mixed a fixed fake clock with the machine's real
+   `submitted_at` stamps, making the stale-submitted check time-of-day dependent.
+   Fixed by evaluating staleness against real wall-clock in that test.
+
 Notes (Phase B):
 
 - Migration `0004` and `0008` add append-only/immutability triggers on top of the
