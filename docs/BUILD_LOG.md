@@ -36,7 +36,28 @@ Failures encountered and fixed:
    `TunableParams.from_dict` needed `dict[str, Any]` because the snapshot mixes
    float and int fields.
 
-Notes:
+## Phase C — Deterministic analytics (2026-07-21)
+
+Delivered: `src/data/option_chains.py` (normalization with provenance/freshness,
+`StaleQuoteError`), `src/analytics/` (Greeks with BROKER/CALCULATED source labels and
+recorded assumptions; payoff/breakeven/max-loss with undefined-risk rejection;
+volatility term structure/skew/expected move/realized vol in pure Decimal via
+`Decimal.ln`/`Decimal.sqrt`; liquidity + execution-cost estimates against policy
+floors; technical feature service; portfolio dollar-Greeks, limit headroom, and
+delta-gamma stress floored at defined max loss; opportunity score with stored
+components; opportunity-cost engine with budget/cash/quality gates and ranking), and
+`src/risk/settlement.py` (settled-cash/collateral checks, exits never blocked).
+75 new tests with hand-verified values (spec's own 600/605 spread: 185/315/601.85;
+Black-Scholes reference at S=K=100, r=5%, sigma=20%, t=0.2y) and explicit
+stale/invalid-input rejection tests. Full suite 245 green; mypy/ruff clean.
+
+Notes: Black-Scholes transcendental math runs in floats internally (documented —
+Greeks are model estimates, not money) and quantizes to 6 dp with assumptions
+recorded; all money arithmetic remains pure Decimal. One fix: a test asserted the
+`None` return of an always-`None` function (mypy `func-returns-value`) — rewritten
+to assert "no exception".
+
+Notes (Phase B):
 
 - Migration `0004` and `0008` add append-only/immutability triggers on top of the
   verbatim DDL (`strategy_config_versions`, `order_events`) — additive hardening,
