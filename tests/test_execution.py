@@ -45,24 +45,16 @@ def settled(amount: float) -> Account:
 
 
 def position() -> Position:
-    return Position(
-        "t1", "AAPL", 100.0, 0.5, 50.0, "2026-07-05T00:00:00+00:00", HARD_STOP_LOSS_PCT, 0.25
-    )
+    return Position("t1", "AAPL", 100.0, 0.5, 50.0, "2026-07-05T00:00:00+00:00",
+                    HARD_STOP_LOSS_PCT, 0.25)
 
 
 # === paper mode ============================================================
 
-
 def test_paper_entry_stages_and_fills(db: Database) -> None:
     agent = ExecutionAgent(broker=PaperBroker(), db=db, paper=True)
-    result = agent.place_entry(
-        "AAPL",
-        shares=0.5,
-        notional_usd=50.0,
-        estimated_price=100.0,
-        account=settled(100.0),
-        now=NOW,
-    )
+    result = agent.place_entry("AAPL", shares=0.5, notional_usd=50.0, estimated_price=100.0,
+                               account=settled(100.0), now=NOW)
     assert result.status == STATUS_FILLED
     assert result.fill is not None and result.fill.price == 100.0
     orders = db.recent_orders()
@@ -78,9 +70,8 @@ def test_paper_entry_blocked_when_unsettled_funds(db: Database) -> None:
         recent_sales=[Sale(proceeds=100.0, settlement_date=(NOW + timedelta(days=1)).date())],
     )
     agent = ExecutionAgent(broker=PaperBroker(), db=db, paper=True)
-    result = agent.place_entry(
-        "AAPL", shares=1.0, notional_usd=90.0, estimated_price=90.0, account=account, now=NOW
-    )
+    result = agent.place_entry("AAPL", shares=1.0, notional_usd=90.0, estimated_price=90.0,
+                               account=account, now=NOW)
     assert result.status == STATUS_BLOCKED
     assert result.fill is None
     assert result.reason == "would_use_unsettled_funds"
@@ -96,18 +87,11 @@ def test_paper_exit_fills(db: Database) -> None:
 
 # === live-mode safety ======================================================
 
-
 def test_live_mode_never_confirms_only_awaits_robinhood(db: Database) -> None:
     broker = StubLiveBroker()
     agent = ExecutionAgent(broker=broker, db=db, paper=False)
-    result = agent.place_entry(
-        "AAPL",
-        shares=0.5,
-        notional_usd=50.0,
-        estimated_price=100.0,
-        account=settled(100.0),
-        now=NOW,
-    )
+    result = agent.place_entry("AAPL", shares=0.5, notional_usd=50.0, estimated_price=100.0,
+                               account=settled(100.0), now=NOW)
     # Staged + submitted, but NEVER filled by code — the human approves on Robinhood.
     assert result.status == STATUS_PENDING_APPROVAL
     assert result.fill is None

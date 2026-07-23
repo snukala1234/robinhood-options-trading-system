@@ -22,16 +22,9 @@ def client(db: Database | None = None) -> ModelClient:
 
 def signal(direction: str = LONG, conf: float = 0.80, price: float = 100.0) -> AggregatedSignal:
     return AggregatedSignal(
-        symbol="AAPL",
-        direction=direction,
-        magnitude=0.6,
-        calibrated_confidence=conf,
-        current_price=price,
-        atr_14=2.0,
-        market_regime="normal",
-        reasoning="r",
-        active_model="claude-fable-5",
-        contributing={"research_technical": {"confidence": conf}},
+        symbol="AAPL", direction=direction, magnitude=0.6, calibrated_confidence=conf,
+        current_price=price, atr_14=2.0, market_regime="normal", reasoning="r",
+        active_model="claude-fable-5", contributing={"research_technical": {"confidence": conf}},
     )
 
 
@@ -40,20 +33,11 @@ def settled_account(amount: float) -> Account:
 
 
 def position(symbol: str) -> Position:
-    return Position(
-        f"t-{symbol}",
-        symbol,
-        100.0,
-        1.0,
-        100.0,
-        "2026-07-05T00:00:00+00:00",
-        HARD_STOP_LOSS_PCT,
-        DEFAULT_STRATEGY.take_profit_pct,
-    )
+    return Position(f"t-{symbol}", symbol, 100.0, 1.0, 100.0, "2026-07-05T00:00:00+00:00",
+                    HARD_STOP_LOSS_PCT, DEFAULT_STRATEGY.take_profit_pct)
 
 
 # === Portfolio Construction (Agent 4) ======================================
-
 
 def test_construction_builds_viable_long_proposal() -> None:
     pc = PortfolioConstruction(client=client())
@@ -89,37 +73,21 @@ def test_construction_rejects_when_concurrency_cap_hit() -> None:
 
 # === Risk Manager (Agent 5) ================================================
 
-
 def _viable_proposal(size_usd: float = 40.0, price: float = 100.0) -> TradeProposal:
     return TradeProposal(
-        symbol="AAPL",
-        direction=LONG,
-        entry_price=price,
-        size_usd=size_usd,
-        shares=size_usd / price,
-        stop_loss_pct=HARD_STOP_LOSS_PCT,
-        take_profit_pct=DEFAULT_STRATEGY.take_profit_pct,
-        aggregated_confidence=0.80,
-        atr_pct=0.02,
-        market_regime="normal",
-        active_model="claude-fable-5",
-        decided_under_failover=False,
-        viable=True,
-        reason="ok",
+        symbol="AAPL", direction=LONG, entry_price=price, size_usd=size_usd,
+        shares=size_usd / price, stop_loss_pct=HARD_STOP_LOSS_PCT,
+        take_profit_pct=DEFAULT_STRATEGY.take_profit_pct, aggregated_confidence=0.80,
+        atr_pct=0.02, market_regime="normal", active_model="claude-fable-5",
+        decided_under_failover=False, viable=True, reason="ok",
     )
 
 
 def test_risk_manager_approves_valid_long() -> None:
     rm = RiskManager(client=client())
-    decision = rm.evaluate(
-        _viable_proposal(40.0),
-        settled_account(100.0),
-        NOW,
-        account_equity=500.0,
-        high_water_mark=500.0,
-        daily_start_equity=500.0,
-        open_positions=[],
-    )
+    decision = rm.evaluate(_viable_proposal(40.0), settled_account(100.0), NOW,
+                           account_equity=500.0, high_water_mark=500.0, daily_start_equity=500.0,
+                           open_positions=[])
     assert decision.approved is True
     assert decision.reason == "approved"
     assert decision.narrative_flag  # narrative present but non-authoritative
@@ -128,30 +96,18 @@ def test_risk_manager_approves_valid_long() -> None:
 def test_risk_manager_blocks_on_drawdown_halt() -> None:
     rm = RiskManager(client=client())
     # 25% below high-water mark -> halt_all_trading.
-    decision = rm.evaluate(
-        _viable_proposal(),
-        settled_account(1000.0),
-        NOW,
-        account_equity=75.0,
-        high_water_mark=100.0,
-        daily_start_equity=76.0,
-        open_positions=[],
-    )
+    decision = rm.evaluate(_viable_proposal(), settled_account(1000.0), NOW,
+                           account_equity=75.0, high_water_mark=100.0, daily_start_equity=76.0,
+                           open_positions=[])
     assert decision.approved is False
     assert decision.halt is not None and decision.halt.action == "halt_all_trading"
 
 
 def test_risk_manager_blocks_on_daily_loss_halt() -> None:
     rm = RiskManager(client=client())
-    decision = rm.evaluate(
-        _viable_proposal(),
-        settled_account(1000.0),
-        NOW,
-        account_equity=90.0,
-        high_water_mark=100.0,
-        daily_start_equity=100.0,
-        open_positions=[],
-    )
+    decision = rm.evaluate(_viable_proposal(), settled_account(1000.0), NOW,
+                           account_equity=90.0, high_water_mark=100.0, daily_start_equity=100.0,
+                           open_positions=[])
     assert decision.approved is False
     assert decision.halt is not None and decision.halt.action == "halt_new_entries"
 
@@ -164,15 +120,9 @@ def test_risk_manager_blocks_unsettled_funds_backstop() -> None:
         cleared_deposits=20.0,
         recent_sales=[Sale(proceeds=100.0, settlement_date=(NOW + timedelta(days=1)).date())],
     )
-    decision = rm.evaluate(
-        _viable_proposal(size_usd=120.0),
-        account,
-        NOW,
-        account_equity=1000.0,
-        high_water_mark=1000.0,
-        daily_start_equity=1000.0,
-        open_positions=[],
-    )
+    decision = rm.evaluate(_viable_proposal(size_usd=120.0), account, NOW,
+                           account_equity=1000.0, high_water_mark=1000.0,
+                           daily_start_equity=1000.0, open_positions=[])
     assert decision.approved is False
     assert decision.reason == "would_use_unsettled_funds"
 

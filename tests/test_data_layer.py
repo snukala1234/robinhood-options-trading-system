@@ -11,7 +11,6 @@ from core.records import MarketSnapshot
 
 # -- schema -----------------------------------------------------------------
 
-
 def test_all_six_section4_tables_plus_support_tables_exist(db: Database) -> None:
     rows = db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     names = {r["name"] for r in rows}
@@ -35,7 +34,6 @@ def test_schema_is_idempotent(db: Database) -> None:
 
 
 # -- trade lifecycle --------------------------------------------------------
-
 
 def test_trade_entry_and_close_roundtrip(db: Database) -> None:
     cid = db.insert_config_version({"k": 1}, promoted_by="human_confirmed", is_active=True)
@@ -154,21 +152,14 @@ def test_failover_event_audit(db: Database) -> None:
 
 # -- market data ------------------------------------------------------------
 
-
 def test_offline_snapshot_is_deterministic() -> None:
     a = get_snapshot("AAPL")
     b = get_snapshot("AAPL")
     assert isinstance(a, MarketSnapshot)
     # Deterministic offline fixture: every field except the real-time fetch stamp.
-    assert (
-        a.symbol,
-        a.current_price,
-        a.atr_14,
-        a.atr_pct,
-        a.volume,
-        a.avg_volume,
-        a.volume_ratio,
-    ) == (b.symbol, b.current_price, b.atr_14, b.atr_pct, b.volume, b.avg_volume, b.volume_ratio)
+    assert (a.symbol, a.current_price, a.atr_14, a.atr_pct, a.volume, a.avg_volume,
+            a.volume_ratio) == (b.symbol, b.current_price, b.atr_14, b.atr_pct,
+                                b.volume, b.avg_volume, b.volume_ratio)
     assert a.current_price > 0 and a.atr_14 > 0 and 0 < a.atr_pct < 0.1
 
 
@@ -178,7 +169,6 @@ def test_get_snapshots_covers_all_symbols() -> None:
 
 
 # -- event bus --------------------------------------------------------------
-
 
 def test_event_bus_sync_subscribe_and_history() -> None:
     bus = EventBus()

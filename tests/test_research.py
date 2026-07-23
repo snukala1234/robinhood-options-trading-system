@@ -53,9 +53,7 @@ def test_research_output_is_deterministic_offline() -> None:
     a = agent1.analyze(ctx)
     b = agent2.analyze(ctx)
     assert (a.direction, a.magnitude, a.raw_confidence) == (
-        b.direction,
-        b.magnitude,
-        b.raw_confidence,
+        b.direction, b.magnitude, b.raw_confidence
     )
 
 
@@ -73,14 +71,10 @@ def test_recalibration_shifts_calibrated_confidence() -> None:
     # Force a strong negative correction in the high band and confirm it lowers calibrated conf.
     base = TechnicalResearchAgent(client=make_client())
     base_sig = base.analyze(ctx)
-    store = RecalibrationStore(
-        deltas={
-            ("research_technical", BAND_080_100): -0.15,
-            ("research_technical", "0.70-0.80"): -0.15,
-            ("research_technical", "0.65-0.70"): -0.15,
-            ("research_technical", "below_0.65"): -0.15,
-        }
-    )
+    store = RecalibrationStore(deltas={("research_technical", BAND_080_100): -0.15,
+                                       ("research_technical", "0.70-0.80"): -0.15,
+                                       ("research_technical", "0.65-0.70"): -0.15,
+                                       ("research_technical", "below_0.65"): -0.15})
     recal = TechnicalResearchAgent(client=make_client(), recal=store)
     recal_sig = recal.analyze(ctx)
     assert recal_sig.raw_confidence == base_sig.raw_confidence
@@ -125,18 +119,10 @@ def test_aggregator_confidence_dampened_by_disagreement(db: Database) -> None:
 
 def test_aggregator_propagates_failover_flag(db: Database) -> None:
     signals = [
-        ResearchSignal(
-            "Y",
-            "research_technical",
-            "long",
-            0.7,
-            0.8,
-            0.8,
-            "r",
-            "claude-opus-4-8",
-            decided_under_failover=True,
-        ),
-        ResearchSignal("Y", "research_fundamental", "long", 0.6, 0.75, 0.75, "r", "claude-fable-5"),
+        ResearchSignal("Y", "research_technical", "long", 0.7, 0.8, 0.8, "r",
+                       "claude-opus-4-8", decided_under_failover=True),
+        ResearchSignal("Y", "research_fundamental", "long", 0.6, 0.75, 0.75, "r",
+                       "claude-fable-5"),
         ResearchSignal("Y", "research_sentiment", "long", 0.6, 0.7, 0.7, "r", "claude-fable-5"),
         ResearchSignal("Y", "research_macro", "flat", 0.4, 0.6, 0.6, "r", "claude-fable-5"),
     ]
