@@ -57,6 +57,31 @@ recorded; all money arithmetic remains pure Decimal. One fix: a test asserted th
 `None` return of an always-`None` function (mypy `func-returns-value`) — rewritten
 to assert "no exception".
 
+## Phase E — Nine reasoning agents (2026-07-22)
+
+Delivered: `src/agents/` — strict Pydantic output contracts for all nine Section 6
+agents (`schemas.py`, extra="forbid", cross-field model validators, decimal-string
+money, registry-validated strategies, guardrail names structurally unproposable);
+shared `runtime.py` (alias-only model resolution, offline hermetic mode through the
+same schemas, transient-retry + sustained-failover with `decided_under_failover`
+tagging, exactly one schema-repair retry then fail closed, full `agent_decisions`
+logging incl. failures, `agent_unavailable` system events +
+`agent_unavailability_blocks_entries` for REQUIRED_ENTRY_AGENTS, and
+`failover_blocks_new_entry` enforcing ALLOW_NEW_ENTRY_DURING_FAILOVER=False);
+`untrusted.py` prompt-injection hygiene (fence, neutralize, flag) on top of the
+structural defense that agents have no tools at all; and the nine agent modules,
+each with an immutable PROMPT_VERSION, a frozen validated feature packet, a pure
+deterministic offline rule set, and (strategy selector) a semantic
+executable-strategies gate after schema validation. Catalyst Researcher derives
+catalysts only from the trusted calendar; news text is fenced and can only raise
+`suspicious_content_detected`. 90 new tests (repair/fail-closed paths, failover
+tagging, entry-blocking, injection attempts, per-agent rule branches with exact
+expected outputs, DB decision logging). Full suite 382 green; mypy/ruff clean.
+
+Notes: the user declined a multi-agent Workflow fan-out for this phase mid-build;
+implementation completed inline. One fix: ruff UP046/UP047 required PEP 695
+generic syntax for `AgentCallResult`; one stale `type: ignore` removed.
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by
