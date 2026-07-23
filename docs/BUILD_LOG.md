@@ -161,6 +161,48 @@ to have reformatted 12 V1 test files (whitespace only). They were restored
 verbatim (`035a48c`); lint/format runs are now scoped to `src tests/v2`
 until Phase K archival.
 
+## Phase H — Session orchestration (2026-07-22)
+
+Delivered: `src/orchestration/` — `session.py` (the exact Section 15 state
+machine; PREMARKET_RESEARCH reachable only via `complete_startup` with a
+passed report; universal DEGRADED/HALTED entry via dedicated methods with
+mandatory reasons; recovery edges explicit: DEGRADED resumes only when the
+caller proves the condition cleared and only into safe no-new-entry targets,
+HALTED leaves ONLY via `manual_resume` with an identified human per
+REQUIRE_MANUAL_RESUME_AFTER_HALT — `transition()` refuses both; every change
+journaled to system_events); `startup.py` (all ten Section 15.1 checks run
+every time, one failure blocks: calendar/session, DB-clock skew, migrations +
+14 tables, broker auth, capability-snapshot refresh, reconciliation with
+broker positions/open orders captured for restart recovery, market-data
+freshness judged at probe time, active-config SHA-256 integrity via
+`config_integrity.py` evidence stamping, visible paper/live banner that FAILS
+if live orders are ever possible, kill-switch trip+clear self-test verifying
+the epoch); `calendar.py` (2026 NYSE holidays/early closes, DST-aware
+session phases in UTC, uncovered years raise); `health.py` (reusable probes
+that report their own failures instead of raising); `events.py` (synchronous
+bus: handler failures isolated + recorded critical, events journaled);
+`scheduler.py` (Section 15.2: hard-risk 30s ahead of research 300s enforced
+at construction, priority-ordered `run_next`, LLM agent work gated entirely
+behind queued meaningful triggers — never due on a tick).
+
+63 new tests (570 total): full-day chain walk with journal assertions,
+DEGRADED/HALTED from every state, all recovery-edge refusals, startup
+fail-closed proofs (dead broker, missing/tampered config hash, unclean
+reconciliation, stale feed), restart-with-open-positions recovery (broker
+truth converged, resume into POSITION_MANAGEMENT), one-task-per-tick
+starvation simulation (hard-risk gaps bounded at 2x cadence), 1000 idle
+ticks -> zero agent invocations, calendar/DST/early-close hand checks,
+event-bus failure isolation. mypy strict + ruff clean.
+
+Failures encountered and fixed:
+
+1. Calendar's weekday short-circuit skipped the coverage check on weekends
+   (an uncovered year returned False instead of raising) — coverage now
+   checked first.
+2. `check_market_data` judged freshness against the run-start clock, so a
+   quote observed microseconds after run start read as clock skew — probes
+   are now judged at the moment they return.
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by
