@@ -59,7 +59,9 @@ def test_real_fundamental_agent_neutral_when_no_data() -> None:
 
 
 def test_neutral_agent_is_flat() -> None:
-    agent = NeutralResearchAgent(ModelClient(provider=OfflineProvider()), None, "research_sentiment")
+    agent = NeutralResearchAgent(
+        ModelClient(provider=OfflineProvider()), None, "research_sentiment"
+    )
     sig = agent.analyze(_ctx("2025-06-01"))
     assert sig.source_agent == "research_sentiment"
     assert sig.direction == "flat"

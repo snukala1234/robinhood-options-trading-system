@@ -29,15 +29,27 @@ def seed_trades(db: Database, agent: str, n: int, wins: int, confidence: float) 
         size = 50.0
         contributing = {agent: {"raw_signal": "long", "confidence": confidence, "weight": 0.25}}
         tid = db.insert_trade_entry(
-            symbol="AAPL", entry_price=100.0, position_size_usd=size, shares=0.5,
-            contributing_agents=contributing, aggregated_confidence=confidence,
-            account_equity_at_entry=200.0, atr_pct_at_entry=0.02, market_regime_at_entry="normal",
-            stop_loss_pct=0.18, take_profit_pct=0.25, config_version_id=None,
+            symbol="AAPL",
+            entry_price=100.0,
+            position_size_usd=size,
+            shares=0.5,
+            contributing_agents=contributing,
+            aggregated_confidence=confidence,
+            account_equity_at_entry=200.0,
+            atr_pct_at_entry=0.02,
+            market_regime_at_entry="normal",
+            stop_loss_pct=0.18,
+            take_profit_pct=0.25,
+            config_version_id=None,
             active_model="claude-fable-5",
         )
-        db.close_trade(tid, exit_price=100.0 * (1 + ret),
-                       exit_reason="take_profit" if win else "stop_loss",
-                       realized_pnl=ret * size, holding_period_hours=5.0)
+        db.close_trade(
+            tid,
+            exit_price=100.0 * (1 + ret),
+            exit_reason="take_profit" if win else "stop_loss",
+            realized_pnl=ret * size,
+            holding_period_hours=5.0,
+        )
 
 
 def auditor(db: Database) -> CalibrationAuditor:
@@ -49,6 +61,7 @@ def bucket_for(buckets, agent, band):  # noqa: ANN001
 
 
 # === 3.2 calibration tracking + significance ===============================
+
 
 def test_significant_overconfidence_proposes_reduction(db: Database) -> None:
     # 40 high-confidence (0.85 -> band 0.80-1.00, expected 0.90) calls that win only 50%.
@@ -86,6 +99,7 @@ def test_within_variance_no_action(db: Database) -> None:
 
 # === 3.3 Agent 8 never writes a Section 0 guardrail ========================
 
+
 def test_shadow_parameters_are_tunable_only(db: Database) -> None:
     seed_trades(db, "research_technical", n=40, wins=20, confidence=0.85)
     a = auditor(db)
@@ -111,6 +125,7 @@ def test_registering_guardrail_key_is_rejected(db: Database) -> None:
 
 
 # === 3.5 / 3.6 shadow promotion + human checkpoint =========================
+
 
 def _results() -> tuple[ShadowResult, ShadowResult]:
     control_returns = [-0.05] * 20 + [0.05] * 20  # mean 0
@@ -171,6 +186,7 @@ def test_no_improvement_holds(db: Database) -> None:
 
 # === 3.4 regime detection (separate from calibration) ======================
 
+
 def test_regime_detection_and_conservative_nudge(db: Database) -> None:
     a = auditor(db)
     regime = a.detect_regime()
@@ -182,6 +198,7 @@ def test_regime_detection_and_conservative_nudge(db: Database) -> None:
 
 
 # === end-to-end audit ======================================================
+
 
 def test_run_audit_end_to_end_holds_without_human(db: Database) -> None:
     seed_trades(db, "research_technical", n=40, wins=20, confidence=0.85)

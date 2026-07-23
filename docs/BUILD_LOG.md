@@ -82,6 +82,47 @@ Notes: the user declined a multi-agent Workflow fan-out for this phase mid-build
 implementation completed inline. One fix: ruff UP046/UP047 required PEP 695
 generic syntax for `AgentCallResult`; one stale `type: ignore` removed.
 
+## Phase F — Deterministic trade gate and approval tokens (2026-07-22)
+
+Delivered: `src/gate/` — `kill_switches.py` (all eleven Section 3.2 switches
+plus the four step-7 circuit breakers on one panel; monotonic halt epoch bumped
+by every activation AND every manual resume; clearing requires an identified
+human per REQUIRE_MANUAL_RESUME_AFTER_HALT; changes logged as critical
+system_events); `committee.py` (Risk Officer veto terminates the proposal at
+the gate boundary; combined reductions take the MINIMUM; >1 fractions are
+unrepresentable in the schemas and rejected again by sizing); `trade_gate.py`
+(the exact Section 3.1 ten-step precedence, short-circuiting at the first
+failure with later steps recorded `not_evaluated` — downstream can never
+override upstream; Section 9 sizing with reduce-only committee fraction;
+`ApprovalToken` mintable ONLY by the gate via a module-private capability,
+short-lived (30s) and bound to proposal + account-state hash + quote-snapshot
+hash + halt epoch; every evaluation upserted to `trade_proposals` keyed by
+proposal id). `src/risk/sizing.py` (Section 9 `calculate_contract_quantity`
+verbatim + reduce-only `risk_fraction`). `src/execution/submission.py`
+(`OrderSubmitter`, the single src call site of `.submit_order(`: verifies
+token type/expiry/proposal/price/quantity/account-hash/quote-hash, then
+re-reads the live kill-switch panel IMMEDIATELY before broker submit and fails
+closed on any active switch or epoch drift; tokens single-use; orders walk
+CREATED→VALIDATED→STAGED→SUBMITTED through the event-sourced machine).
+
+72 new tests (454 total): attempted-bypass per guardrail step (stale/future
+quotes, kill switches, reconciliation uncertainty, failover, stale
+account/underlying data, capability-gated strategy, price increment,
+settled-cash shortfall incl. fees, credit collateral max(broker, own), DTE
+bounds, earnings, contract-price cap, underlying concentration, concurrent
+positions, all four circuit breakers, wide spread, thin OI, live destination
+always refused), out-of-order-precedence impossibility, token
+forge/replay/expiry/reuse, the audit-finding-1 integration (token valid at
+issuance dies when a switch trips before submit and STAYS dead after manual
+resume because the epoch moved twice), veto-never-yields-token,
+smaller-reduction-wins, hypothesis property (sized risk never exceeds any
+budget), and structural sweeps (_MINT private to the gate; only the submitter
+calls broker submit). mypy strict + ruff clean.
+
+Fix during the phase: gate audit rows initially used a random row id, breaking
+the `orders.proposal_id -> trade_proposals(id)` FK at submission — rows are
+now keyed by the proposal's own id with ON CONFLICT upsert (latest decision).
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by

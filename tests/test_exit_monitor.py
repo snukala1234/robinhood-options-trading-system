@@ -33,8 +33,9 @@ class FakeClient:
 
 
 def position(entry: float = 100.0, tp: float = 0.25) -> Position:
-    return Position("t1", "AAPL", entry, 1.0, entry, "2026-07-05T00:00:00+00:00",
-                    HARD_STOP_LOSS_PCT, tp)
+    return Position(
+        "t1", "AAPL", entry, 1.0, entry, "2026-07-05T00:00:00+00:00", HARD_STOP_LOSS_PCT, tp
+    )
 
 
 def test_forced_stop_loss_exit() -> None:
@@ -79,8 +80,12 @@ def test_model_outage_still_forces_stop_loss() -> None:
 
 def test_evaluate_all_multiple_positions() -> None:
     mon = ExitMonitor(client=FakeClient({"invalidated": False}))
-    positions = [position(), Position("t2", "MSFT", 200.0, 1.0, 200.0,
-                                      "2026-07-05T00:00:00+00:00", HARD_STOP_LOSS_PCT, 0.25)]
+    positions = [
+        position(),
+        Position(
+            "t2", "MSFT", 200.0, 1.0, 200.0, "2026-07-05T00:00:00+00:00", HARD_STOP_LOSS_PCT, 0.25
+        ),
+    ]
     prices = {"AAPL": 100.0 * (1 - HARD_STOP_LOSS_PCT), "MSFT": 260.0}  # AAPL stop, MSFT TP
     decisions = mon.evaluate_all(positions, price_of=lambda s: prices[s])
     reasons = {d.position.symbol: (d.action, d.reason) for d in decisions}

@@ -19,9 +19,11 @@ class AlwaysFailoverProvider:
     def generate(self, model: str, system: str, user: str) -> str:
         if model == "claude-fable-5":
             raise ModelUnavailableError("suspended")
-        return '{"direction": "long", "magnitude": 0.6, "raw_confidence": 0.8, ' \
-               '"reasoning": "x", "ranked": ["AMZN"], "invalidated": false, "flag": "f", ' \
-               '"rationale": "r", "summary": "s"}'
+        return (
+            '{"direction": "long", "magnitude": 0.6, "raw_confidence": 0.8, '
+            '"reasoning": "x", "ranked": ["AMZN"], "invalidated": false, "flag": "f", '
+            '"rationale": "r", "summary": "s"}'
+        )
 
 
 def build(db: Database, universe: list[str] | None = None, capital: float = 300.0):  # noqa: ANN201
@@ -32,6 +34,7 @@ def build(db: Database, universe: list[str] | None = None, capital: float = 300.
 
 
 # === PaperPortfolio settlement ============================================
+
 
 def test_portfolio_settlement_excludes_unsettled_then_settles() -> None:
     pf = PaperPortfolio(100.0)
@@ -52,6 +55,7 @@ def test_buy_reduces_settled_cash() -> None:
 
 
 # === entry cycle ===========================================================
+
 
 def test_entry_cycle_opens_position_and_snapshots(db: Database) -> None:
     orch, _pf = build(db)
@@ -78,6 +82,7 @@ def test_no_new_entry_when_no_settled_cash(db: Database) -> None:
 
 
 # === monitor / exit cycle ==================================================
+
 
 def test_monitor_closes_on_stop_and_proceeds_are_unsettled(db: Database) -> None:
     orch, pf = build(db)
@@ -108,6 +113,7 @@ def test_monitor_take_profit_exit(db: Database) -> None:
 
 # === Section 3.8 failover policy ===========================================
 
+
 def test_new_entries_disabled_under_failover(db: Database) -> None:
     client = ModelClient(provider=AlwaysFailoverProvider(), db=db)
     orch = Orchestrator(db, client, PaperPortfolio(300.0), universe=["AMZN"])
@@ -120,6 +126,7 @@ def test_new_entries_disabled_under_failover(db: Database) -> None:
 
 
 # === daily rollup ==========================================================
+
 
 def test_daily_pnl_rollup_written(db: Database) -> None:
     orch, _pf = build(db)

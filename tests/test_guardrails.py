@@ -64,6 +64,7 @@ NOW = datetime(2026, 7, 5, 15, 0, tzinfo=UTC)
 
 # === Section 0 constant integrity =========================================
 
+
 def test_section0_constants_have_expected_values() -> None:
     # Drift detection: these are the spec's hard limits and must not silently change.
     assert G.MAX_POSITION_PCT_OF_EQUITY == 0.40
@@ -85,43 +86,57 @@ def test_hard_stop_within_documented_band() -> None:
 
 # === MAX_POSITION_PCT_OF_EQUITY ============================================
 
+
 def test_size_never_exceeds_max_position_pct_of_equity() -> None:
     # Attempt: enormous settled cash so only the equity cap can bind.
     equity = 500.0
-    size = calculate_position_size(equity, settled_cash_amount=10_000.0,
-                                   signal=make_signal(confidence=1.0, atr_14=0.5),
-                                   open_positions=[])
+    size = calculate_position_size(
+        equity,
+        settled_cash_amount=10_000.0,
+        signal=make_signal(confidence=1.0, atr_14=0.5),
+        open_positions=[],
+    )
     assert size <= equity * G.MAX_POSITION_PCT_OF_EQUITY + 1e-9
 
 
 # === settled-cash cap on sizing (Section 1.1) ==============================
 
+
 def test_size_never_exceeds_settled_cash() -> None:
     # Attempt: high equity cap but only $30 settled — size must not exceed settled cash.
-    size = calculate_position_size(account_equity=1_000.0, settled_cash_amount=30.0,
-                                   signal=make_signal(confidence=1.0, atr_14=0.5),
-                                   open_positions=[])
+    size = calculate_position_size(
+        account_equity=1_000.0,
+        settled_cash_amount=30.0,
+        signal=make_signal(confidence=1.0, atr_14=0.5),
+        open_positions=[],
+    )
     assert size <= 30.0 + 1e-9
 
 
 def test_zero_settled_cash_blocks_sizing() -> None:
-    size = calculate_position_size(account_equity=1_000.0, settled_cash_amount=0.0,
-                                   signal=make_signal(), open_positions=[])
+    size = calculate_position_size(
+        account_equity=1_000.0, settled_cash_amount=0.0, signal=make_signal(), open_positions=[]
+    )
     assert size == 0.0
 
 
 # === MAX_CONCURRENT_POSITIONS ==============================================
 
+
 def test_max_concurrent_positions_blocks_new_entry() -> None:
     open_positions = [make_position(s) for s in ("AAPL", "JPM", "NFLX")]
     assert len(open_positions) == G.MAX_CONCURRENT_POSITIONS
-    size = calculate_position_size(account_equity=1_000.0, settled_cash_amount=500.0,
-                                   signal=make_signal(symbol="TSLA"),
-                                   open_positions=open_positions)
+    size = calculate_position_size(
+        account_equity=1_000.0,
+        settled_cash_amount=500.0,
+        signal=make_signal(symbol="TSLA"),
+        open_positions=open_positions,
+    )
     assert size == 0.0
 
 
 # === MIN_SIGNAL_CONFIDENCE_TO_TRADE ========================================
+
 
 def test_confidence_gate_blocks_subthreshold_signal() -> None:
     assert passes_confidence_gate(0.65) is True
@@ -130,6 +145,7 @@ def test_confidence_gate_blocks_subthreshold_signal() -> None:
 
 
 # === HARD_STOP_LOSS_PCT (forced, unconditional) ============================
+
 
 def test_hard_stop_loss_fires_at_threshold_and_is_forced() -> None:
     pos = make_position(entry_price=100.0)
@@ -159,28 +175,32 @@ def test_cash_account_stop_is_unconditional_same_as_hard_stop() -> None:
 
 # === MAX_DAILY_LOSS_PCT / MAX_DRAWDOWN_HALT_PCT ============================
 
+
 def test_daily_loss_limit_halts_new_entries() -> None:
     # Attempt: down exactly 10% on the day.
-    halt = check_portfolio_halt(account_equity=90.0, high_water_mark=100.0,
-                                daily_start_equity=100.0)
+    halt = check_portfolio_halt(
+        account_equity=90.0, high_water_mark=100.0, daily_start_equity=100.0
+    )
     assert halt is not None
     assert halt.action == "halt_new_entries" and halt.resumes_next_session is True
 
 
 def test_drawdown_halt_stops_all_trading_and_requires_manual_resume() -> None:
     # Attempt: 25% below high-water mark.
-    halt = check_portfolio_halt(account_equity=75.0, high_water_mark=100.0,
-                                daily_start_equity=76.0)
+    halt = check_portfolio_halt(account_equity=75.0, high_water_mark=100.0, daily_start_equity=76.0)
     assert halt is not None
     assert halt.action == "halt_all_trading" and halt.requires_manual_resume is True
 
 
 def test_no_halt_within_limits() -> None:
-    assert check_portfolio_halt(account_equity=98.0, high_water_mark=100.0,
-                                daily_start_equity=100.0) is None
+    assert (
+        check_portfolio_halt(account_equity=98.0, high_water_mark=100.0, daily_start_equity=100.0)
+        is None
+    )
 
 
 # === Section 1.1 settled-cash / GFV invariant ==============================
+
 
 def test_settled_cash_excludes_unsettled_proceeds() -> None:
     account = Account(
@@ -216,7 +236,10 @@ def test_sizing_cannot_fund_a_purchase_beyond_settled_cash_end_to_end() -> None:
     # so assert_purchase_is_covered can never block a size-derived order.
     settled = 40.0
     account = Account(cleared_deposits=settled, recent_sales=[])
-    size = calculate_position_size(account_equity=1_000.0, settled_cash_amount=settled,
-                                   signal=make_signal(confidence=1.0, atr_14=0.5),
-                                   open_positions=[])
+    size = calculate_position_size(
+        account_equity=1_000.0,
+        settled_cash_amount=settled,
+        signal=make_signal(confidence=1.0, atr_14=0.5),
+        open_positions=[],
+    )
     assert assert_purchase_is_covered(order_cost=size, account=account, now=NOW).allowed is True

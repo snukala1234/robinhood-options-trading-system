@@ -16,24 +16,63 @@ def seed(path: Path) -> None:
     cid = db.insert_config_version({"strategy": {}}, promoted_by="human_confirmed", is_active=True)
     db.set_active_config(cid)
     tid = db.insert_trade_entry(
-        symbol="AMZN", entry_price=100.0, position_size_usd=50.0, shares=0.5,
+        symbol="AMZN",
+        entry_price=100.0,
+        position_size_usd=50.0,
+        shares=0.5,
         contributing_agents={"research_technical": {"raw_signal": "long", "confidence": 0.8}},
-        aggregated_confidence=0.78, account_equity_at_entry=300.0, atr_pct_at_entry=0.02,
-        market_regime_at_entry="normal", stop_loss_pct=0.18, take_profit_pct=0.25,
-        config_version_id=cid, active_model="claude-fable-5", entry_ts="2026-06-01T14:00:00+00:00",
+        aggregated_confidence=0.78,
+        account_equity_at_entry=300.0,
+        atr_pct_at_entry=0.02,
+        market_regime_at_entry="normal",
+        stop_loss_pct=0.18,
+        take_profit_pct=0.25,
+        config_version_id=cid,
+        active_model="claude-fable-5",
+        entry_ts="2026-06-01T14:00:00+00:00",
     )
-    db.close_trade(tid, exit_price=125.0, exit_reason="take_profit", realized_pnl=12.5,
-                   holding_period_hours=48.0, exit_ts="2026-06-03T14:00:00+00:00")
-    db.insert_equity_snapshot(total_equity=312.5, settled_cash=262.5, open_positions_value=0.0,
-                              high_water_mark=312.5, open_position_count=0, source="scheduled_close",
-                              ts="2026-06-03T20:00:00+00:00")
-    db.upsert_daily_pnl(trading_date="2026-06-03", starting_equity=300.0, ending_equity=312.5,
-                        realized_pnl=12.5, unrealized_pnl_change=0.0, total_pnl=12.5,
-                        total_pnl_pct=0.0417, trades_opened=0, trades_closed=1, wins=1, losses=0)
-    db.insert_order(symbol="AMZN", side="buy", quantity=0.5, notional_usd=50.0,
-                    estimated_price=100.0, status="filled", approval_mode="manual")
-    db.upsert_agent_status(agent_name="scanner", state="idle", summary="done",
-                           active_model="claude-fable-5")
+    db.close_trade(
+        tid,
+        exit_price=125.0,
+        exit_reason="take_profit",
+        realized_pnl=12.5,
+        holding_period_hours=48.0,
+        exit_ts="2026-06-03T14:00:00+00:00",
+    )
+    db.insert_equity_snapshot(
+        total_equity=312.5,
+        settled_cash=262.5,
+        open_positions_value=0.0,
+        high_water_mark=312.5,
+        open_position_count=0,
+        source="scheduled_close",
+        ts="2026-06-03T20:00:00+00:00",
+    )
+    db.upsert_daily_pnl(
+        trading_date="2026-06-03",
+        starting_equity=300.0,
+        ending_equity=312.5,
+        realized_pnl=12.5,
+        unrealized_pnl_change=0.0,
+        total_pnl=12.5,
+        total_pnl_pct=0.0417,
+        trades_opened=0,
+        trades_closed=1,
+        wins=1,
+        losses=0,
+    )
+    db.insert_order(
+        symbol="AMZN",
+        side="buy",
+        quantity=0.5,
+        notional_usd=50.0,
+        estimated_price=100.0,
+        status="filled",
+        approval_mode="manual",
+    )
+    db.upsert_agent_status(
+        agent_name="scanner", state="idle", summary="done", active_model="claude-fable-5"
+    )
     db.close()
 
 
@@ -43,13 +82,16 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     seed(dbp)
     monkeypatch.setattr(settings, "DB_PATH", dbp)
     from dashboard.api import app
+
     return TestClient(app)
 
 
 # === read-only by construction =============================================
 
+
 def test_no_state_mutating_routes() -> None:
     from dashboard.api import app
+
     for route in app.routes:
         methods = getattr(route, "methods", None)
         if methods:
@@ -72,6 +114,7 @@ def test_dashboard_does_not_import_execution_or_mcp() -> None:
 
 
 # === endpoints serve real data =============================================
+
 
 def test_agents_status(client: TestClient) -> None:
     r = client.get("/api/agents/status")

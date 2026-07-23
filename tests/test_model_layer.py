@@ -47,6 +47,7 @@ OFFLINE = {"direction": "long", "confidence": 0.7}
 
 # === config/models =========================================================
 
+
 def test_every_agent_defaults_to_fable_5() -> None:
     assert set(models.ALL_AGENT_KEYS) == set(models.AGENT_MODELS)
     for key in models.ALL_AGENT_KEYS:
@@ -64,6 +65,7 @@ def test_failover_chain_order() -> None:
 
 # === offline path ==========================================================
 
+
 def test_offline_path_returns_offline_result() -> None:
     client = ModelClient(provider=OfflineProvider())
     result = client.complete_json("research_technical", "sys", "user", OFFLINE)
@@ -75,6 +77,7 @@ def test_offline_path_returns_offline_result() -> None:
 
 
 # === live failover =========================================================
+
 
 def test_sustained_unavailable_triggers_failover_and_is_tagged(db: Database) -> None:
     provider = ScriptedProvider(
@@ -145,6 +148,7 @@ def test_all_models_unavailable_raises() -> None:
 
 # === JSON extraction =======================================================
 
+
 def test_extract_json_from_fenced_prose() -> None:
     text = 'Sure! Here is the result:\n```json\n{"direction": "long", "confidence": 0.8}\n```'
     assert extract_json(text) == {"direction": "long", "confidence": 0.8}
@@ -161,6 +165,7 @@ def test_extract_json_raises_when_absent() -> None:
 
 # === spec fidelity: no hardcoded model strings outside config/models.py ====
 
+
 def test_no_model_string_hardcoded_outside_config_models() -> None:
     repo = Path(__file__).resolve().parent.parent
     allowed = {repo / "config" / "models.py"}
@@ -169,7 +174,7 @@ def test_no_model_string_hardcoded_outside_config_models() -> None:
         for path in (repo / pkg).rglob("*.py"):
             if path in allowed:
                 continue
-            if 'claude-fable-5' in path.read_text(encoding="utf-8"):
+            if "claude-fable-5" in path.read_text(encoding="utf-8"):
                 offenders.append(str(path.relative_to(repo)))
     # Also check top-level modules (orchestrator, run_paper) once they exist.
     for name in ("orchestrator.py", "run_paper.py"):
