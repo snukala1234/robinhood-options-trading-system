@@ -123,6 +123,44 @@ Fix during the phase: gate audit rows initially used a random row id, breaking
 the `orders.proposal_id -> trade_proposals(id)` FK at submission — rows are
 now keyed by the proposal's own id with ON CONFLICT upsert (latest decision).
 
+## Phase G — Deterministic position management (2026-07-22)
+
+Delivered: `src/positions/` — `monitoring.py` (validated PositionMarketState:
+mark/spot/Greeks/IV/event/broker flags, Decimal-only, computes unrealized
+P&L per net intent); `exit_rules.py` (all five Section 10 dimensions reading
+typed ExitPlan keys built by `build_exit_plan`; malformed plan values raise
+instead of evaluating to "no exit"; aggregation EXIT > REDUCE > REVIEW >
+ALERT > HOLD; `exit_limit_price` slippage-aware closing limits — quarter
+spread concession, half under high urgency, never a market order);
+`checkpoints.py` (monotonic DTE/assignment escalation ladder NONE ->
+DTE_REVIEW -> ASSIGNMENT_WATCH -> FORCED_EXIT -> EMERGENCY; assignment
+notice is EMERGENCY at any dte); `emergency.py` (the five Section 10.6
+triggers detected from pure state; EmergencyExitEngine records a critical
+system event and submits an atomic inverted-leg closing limit order — no LLM
+anywhere, sweep-enforced); `degraded.py` (combined view over Phase D
+reconciliation `new_entries_allowed` + the kill-switch panel: entries blocked
+by everything, exits blocked only by the exit-blocking subset). Extended
+`src/execution/submission.py` with the token-free `submit_exit` path:
+settlement explicitly never blocks it (`closing_order_cash_check`), and when
+the broker lacks the mechanism to reduce risk (e.g. no atomic multi-leg
+close) it ALERTS AND HALTS — critical system event + broker_degradation
+trip + nothing submitted; legging out is not a code path that exists.
+
+53 new tests (507 total): every dimension's triggers and non-triggers with
+exact rules, strict-plan rejection (missing key, float), aggregation
+precedence, hand-verified slippage pricing, checkpoint ladder + monotonic
+escalation property, all five emergency triggers, the required end-to-end
+proofs (emergency exit fires with the model layer entirely absent; degraded
+mode rejects a new entry at the gate while a risk-reducing exit walks the
+full Section 12.2 path under the same halt; DTE checkpoint fires; missing
+exit mechanism halts-and-alerts with zero orders created and subsequent
+exits refused). mypy strict + ruff clean.
+
+Note: after Phase F's commit, a repo-wide `ruff format src tests` was found
+to have reformatted 12 V1 test files (whitespace only). They were restored
+verbatim (`035a48c`); lint/format runs are now scoped to `src tests/v2`
+until Phase K archival.
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by

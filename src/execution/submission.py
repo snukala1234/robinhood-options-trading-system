@@ -24,6 +24,9 @@ import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
+
+from psycopg.types.json import Jsonb
 
 from src.data.option_chains import ContractQuote
 from src.domain.orders import OrderState
@@ -44,6 +47,7 @@ from src.gate.trade_gate import (
     hash_account_state,
     hash_quote_snapshot,
 )
+from src.risk.settlement import CashAccountState, closing_order_cash_check
 
 
 class SubmissionRefused(RuntimeError):
@@ -52,6 +56,13 @@ class SubmissionRefused(RuntimeError):
     def __init__(self, reason: str, detail: str = "") -> None:
         super().__init__(f"{reason}{': ' + detail if detail else ''}")
         self.reason = reason
+
+
+class ExitMechanismUnavailable(RuntimeError):
+    """The broker lacks the order mechanism needed to reduce risk (spec 10.6).
+
+    The system ALERTS AND HALTS — it never improvises, and it never legs out
+    of a multi-leg structure with independent orders."""
 
 
 @dataclass(frozen=True)
@@ -165,6 +176,81 @@ class OrderSubmitter:
             )
 
         self._used_tokens.add(token.token_id)  # single-use from this point on
+        return self._submit_staged(order_id, request)
+
+    def submit_exit(
+        self,
+        request: LimitOrderRequest,
+        *,
+        position_id: uuid.UUID,
+        reason: str,
+        cash_state: CashAccountState | None = None,
+    ) -> SubmissionReceipt:
+        """Submit a risk-reducing exit. No approval token: exits reduce risk and
+        must stay possible in degraded mode — only the exit-blocking kill
+        switches stop them, and settlement state NEVER blocks them (spec §11).
+
+        If the broker lacks the order mechanism this exit needs (e.g. no atomic
+        multi-leg close for a spread), the system alerts and halts: a critical
+        system event is recorded, broker_degradation trips, and NOTHING is
+        submitted — legging out is not a code path that exists."""
+        now = require_utc("now", self.clock())
+        blocked = self.panel.blocks_exits()
+        if blocked:
+            raise SubmissionRefused("exits_halted", ", ".join(blocked))
+        if cash_state is not None:
+            # Explicit, visible, and always a no-op: settlement never blocks exits.
+            closing_order_cash_check(cash_state, now.date())
+
+        caps = self.broker.capabilities()
+        missing: str | None = None
+        if not caps.limit_orders:
+            missing = "limit orders"
+        elif request.is_multi_leg and not caps.multi_leg_orders:
+            missing = "atomic multi-leg close"
+        elif not request.is_multi_leg and not caps.single_leg_orders:
+            missing = "single-leg orders"
+        if missing is not None:
+            self._system_event(
+                "exit_mechanism_unavailable",
+                {
+                    "position_id": str(position_id),
+                    "missing": missing,
+                    "reason": reason,
+                    "legs": len(request.legs),
+                },
+            )
+            self.panel.activate(
+                "broker_degradation",
+                reason=f"broker lacks {missing}; cannot reduce risk on {position_id}",
+            )
+            raise ExitMechanismUnavailable(
+                f"broker lacks {missing} for position {position_id}; "
+                "alerted and halted — the system never legs out or improvises"
+            )
+
+        order_id = self.machine.create_order(
+            idempotency_key=request.idempotency_key,
+            proposal_id=None,
+            raw_request={
+                "risk_reducing_exit": True,
+                "position_id": str(position_id),
+                "reason": reason,
+                "underlying": request.underlying,
+                "limit_price": str(request.limit_price),
+                "quantity": request.quantity,
+                "net_intent": request.net_intent.value,
+            },
+        )
+        self.machine.transition(
+            order_id,
+            OrderState.VALIDATED,
+            reason=f"risk-reducing exit validated: {reason}",
+        )
+        self.machine.transition(order_id, OrderState.STAGED, reason="staged for submission")
+        return self._submit_staged(order_id, request)
+
+    def _submit_staged(self, order_id: uuid.UUID, request: LimitOrderRequest) -> SubmissionReceipt:
         self.machine.transition(order_id, OrderState.SUBMITTED, reason="submitting to broker")
         try:
             ack = self.broker.submit_order(request)
@@ -186,3 +272,11 @@ class OrderSubmitter:
         self.machine.set_raw_response(order_id, dict(ack.raw))
         self.machine.transition(order_id, ack.state, reason="broker acknowledgment")
         return SubmissionReceipt(order_id=order_id, ack=ack)
+
+    def _system_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        self.machine.conn.execute(
+            """INSERT INTO system_events
+               (id, created_at, severity, component, event_type, correlation_id, payload)
+               VALUES (%s, %s, 'critical', 'execution', %s, NULL, %s)""",
+            (uuid.uuid4(), datetime.now(UTC), event_type, Jsonb(payload)),
+        )
