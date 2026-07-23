@@ -24,11 +24,13 @@ import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from psycopg.types.json import Jsonb
 
 from src.data.option_chains import ContractQuote
+from src.domain.instruments import LegSide
 from src.domain.orders import OrderState
 from src.domain.values import require_utc
 from src.execution.interface import (
@@ -73,6 +75,22 @@ class SubmissionReceipt:
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _structure_midpoint(
+    request: LimitOrderRequest, leg_quotes: Sequence[ContractQuote]
+) -> Decimal | None:
+    """Net structure midpoint (per share) from the verification quotes: buy
+    legs add their mid, sell legs subtract. None if any leg lacks a quote."""
+    mids = {quote.contract.occ_symbol(): quote.midpoint for quote in leg_quotes}
+    total = Decimal("0")
+    for leg in request.legs:
+        mid = mids.get(leg.contract.occ_symbol())
+        if mid is None:
+            return None
+        signed = mid if leg.side is LegSide.BUY else -mid
+        total += signed * leg.quantity
+    return abs(total)
 
 
 @dataclass
@@ -134,17 +152,23 @@ class OrderSubmitter:
 
         # Order object exists before the final halt check so a refusal at the
         # last instant is auditable as a CANCELED order, not silence.
+        raw_request = {
+            "underlying": request.underlying,
+            "limit_price": str(request.limit_price),
+            "quantity": request.quantity,
+            "net_intent": request.net_intent.value,
+            "token_id": str(token.token_id),
+            "correlation_id": str(token.correlation_id),
+        }
+        structure_mid = _structure_midpoint(request, leg_quotes)
+        if structure_mid is not None:
+            # Recorded so fill slippage can later be judged against the
+            # midpoint at submission time, not just the limit price.
+            raw_request["structure_midpoint"] = str(structure_mid)
         order_id = self.machine.create_order(
             idempotency_key=request.idempotency_key,
             proposal_id=token.proposal_id,
-            raw_request={
-                "underlying": request.underlying,
-                "limit_price": str(request.limit_price),
-                "quantity": request.quantity,
-                "net_intent": request.net_intent.value,
-                "token_id": str(token.token_id),
-                "correlation_id": str(token.correlation_id),
-            },
+            raw_request=raw_request,
         )
         self.machine.transition(
             order_id, OrderState.VALIDATED, reason="approval token verified by execution adapter"

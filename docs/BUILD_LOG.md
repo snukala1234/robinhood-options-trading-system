@@ -247,6 +247,42 @@ assertions, and the chaos suite (mutated row detected past disabled
 triggers, deleted row detected, rewritten-chain-cannot-forge-anchors,
 truncation detected, key only from env). mypy strict + ruff clean.
 
+## Phase J — Read-only dashboard (2026-07-22)
+
+Delivered: `src/dashboard/` — all seven Section 18 panels as pure SELECT
+queries (`panels.py`): A system/agents (session state, startup report,
+kill-switch state reconstructed from the chained event stream, per-agent
+last decision + model + prompt version, broker capabilities, data freshness,
+paper/live banner), B equity/drawdown (curve, HWM, realized from closed
+positions, unrealized from latest position snapshots, settled/unsettled),
+C Greeks with dollar limits and headroom plus exposure by underlying/
+strategy/expiration (sector honestly marked unavailable — not persisted),
+D opportunity board with score decomposition and escaped rejection reasons
+and an explicit no-action-controls note, E open positions with exit plans,
+thesis state, liquidity deterioration, F orders with midpoint-vs-fill
+slippage (entry submissions now record the structure midpoint at submit
+time) and reconciliation warnings, G calibration buckets, shadow-vs-control,
+config lifecycle. FastAPI app (`app.py`): GET-only routes, docs disabled,
+localhost-only `serve()`; WebSocket is server-push — inbound frames beyond
+ping/subscribe (including binary, oversized, malformed) are counted, logged,
+and dispatched to nothing.
+
+Read-only is structural at four layers: (1) `readonly_db.py` provisions a
+SELECT-only PostgreSQL role with an additional role-level read-only
+transaction default — raw SQL writes die with insufficient_privilege;
+(2) the package imports no execution/gate/agents/learning/analytics code
+(sweep-enforced; the tiny credit-strategy set is duplicated and pinned to
+the gate's by a sync test); (3) every route is GET (enumerated + 405s
+asserted); (4) all free text is HTML-escaped at the edge (Phase E injection
+stance extended to rendering); money is stringified, never floated.
+
+18 new tests (627 total): eight raw-SQL write attempts refused by privilege,
+all seven panels rendered from a seeded snapshot with exact expected values,
+hostile `<script>`/injection text escaped end to end, route enumeration,
+the Section 19.2 property (row counts + audit-chain heads identical after
+every route, hostile methods, and a ten-frame adversarial WS corpus plus
+binary garbage), ignored frames counted and logged, localhost-bind refusal.
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by
