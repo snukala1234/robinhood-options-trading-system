@@ -203,6 +203,50 @@ Failures encountered and fixed:
    quote observed microseconds after run start read as clock skew — probes
    are now judged at the moment they return.
 
+## Phase I — Learning, calibration, and audit tamper evidence (2026-07-22)
+
+Delivered (fully implemented, nothing stubbed): `src/learning/` —
+`records.py` (validated TradeRecord with every dimension/metric input;
+FillAttempt for fill metrics); `buckets.py` (all thirteen Section 13.2
+dimensions with fixed documented band edges; dollar exposures normalized by
+the trade's own max risk); `metrics.py` (all Section 13.3 metrics in pure
+Decimal — win rate, avg win/loss, expectancy after costs, profit factor,
+MAE/MFE, slippage vs. midpoint, fill rate/time-to-fill, return on max risk
+and per theta/delta/gamma dollar, Brier score, drawdown + recovery duration;
+empty samples refuse, zero-denominator ratios are None never fabricated);
+`calibration.py` (per-dimension runs persisted to calibration_results;
+MIN_SAMPLE_SIZE=30 hard floor — under-sampled buckets are measured but never
+become Auditor evidence); `shadow.py` (ShadowEvaluator re-scores the same
+candidates under shadow weights; decisions are inert data persisted to
+calibration_results; the learning package has no import path to gate/
+execution/brokers — sweep-enforced); `promotion.py` (the full Section 13.4
+lifecycle: propose_change re-gates sample size + guardrails + clamp bounds
+then creates an integrity-hashed immutable shadow version;
+compare_to_control with minimum sample/window and |diff| > 2*SE uncertainty
+gate; promote demands an eligible favorable comparison AND a named human;
+reject/rollback both journaled; rollback refuses to leave zero actives).
+
+Audit finding 3: migration m0015 hash-chains order_events, agent_decisions,
+and system_events — a BEFORE INSERT trigger (covers every writer) stamps
+sha256(prev_hash || canonical jsonb) with the timezone GUC pinned so
+serialization is stable; `audit_chain_breaks(regclass)` recomputes
+server-side; append-only triggers extended to agent_decisions/system_events.
+`src/persistence/audit_chain.py` adds HMAC anchors signed with a key held
+only in the environment (AUDIT_CHAIN_HMAC_KEY, placeholder in .env.example):
+an attacker who rewrites rows and recomputes the whole sha256 chain still
+cannot forge an anchor; truncation and anchored-row drift are detected.
+
+39 new tests (609 total): bucket keys across all 13 dimensions with exact
+expected values, hand-computed metrics (Brier 0.23 reference; drawdown
+110/recovery-2d case), below-minimum-sample proposals refused with nothing
+created, out-of-bounds values refused, guardrails re-refused at the
+calibration layer, shadow-vs-control scoring divergence with zero orders
+anywhere, shadow-decision-is-not-a-token proof at the submitter, comparison
+gates + significance hand case, promotion/rollback round trip with journal
+assertions, and the chaos suite (mutated row detected past disabled
+triggers, deleted row detected, rewritten-chain-cannot-forge-anchors,
+truncation detected, key only from env). mypy strict + ruff clean.
+
 ## Phase D — Broker capability discovery and adapters (2026-07-22)
 
 Delivered: `src/execution/` — typed `BrokerInterface` (limit orders only by
